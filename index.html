@@ -28,7 +28,7 @@ button.stop{background:#555}input{font-size:18px;padding:12px;width:100%;box-siz
 <p class="small">Tip: Allow camera access when Safari asks. Keep the barcode flat and well lit.</p>
 </div>
 <script>
-const ENDPOINT='PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
+const ENDPOINT='https://script.google.com/macros/s/AKfycbxtt6OBBL3eCJIseltL06PxVOkMt6G5pqKt-eU3i9jp5cWEaBY0Xb-Dig5yVTPwdxfv/exec';
 let scanner=null,running=false,lastCode='',lastAt=0;
 const status=m=>document.getElementById('status').textContent=m;
 function submitBarcode(code){
