@@ -45,7 +45,7 @@ async function start(){
  if(typeof Html5Qrcode==='undefined'){status('Scanner library did not load. Check your internet connection and reload.');return;}
  try{
   scanner=new Html5Qrcode('reader',{verbose:false});
-  await scanner.start({facingMode:'environment'},{fps:15,formatsToSupport:[Html5QrcodeSupportedFormats.EAN_13,Html5QrcodeSupportedFormats.EAN_8,Html5QrcodeSupportedFormats.UPC_A,Html5QrcodeSupportedFormats.UPC_E,Html5QrcodeSupportedFormats.CODE_128]},txt=>submitBarcode(txt),()=>{});
+  await scanner.start({facingMode:'environment'},{fps:10,disableFlip:false},txt=>submitBarcode(txt),err=>{if(err)console.debug(err);});
   running=true;document.getElementById('start').style.display='none';document.getElementById('stop').style.display='block';status('Camera running — scan a DVD barcode.');
  }catch(e){status('Camera error: '+(e.message||e));}
 }
