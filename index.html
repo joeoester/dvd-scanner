@@ -180,6 +180,14 @@ async function scanPhoto(){
     const result=await imageScanner.scanFile(file,true);
     submitBarcode(result);
   } catch(error) {
+    status('Photo scan error: ' + (error && error.message ? error.message : String(error)));
+    console.error('Photo scan failed:', error);
+  } finally {
+    if(imageScanner) {
+      try { imageScanner.clear(); } catch(cleanupError) {}
+    }
+    $('scanPhoto').disabled = false;
+  }
   status('Photo scan error: ' + (error && error.message ? error.message : String(error)));
   console.error('Photo scan failed:', error);
 }
