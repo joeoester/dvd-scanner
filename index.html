@@ -1,69 +1,185 @@
+
 <!doctype html>
 <html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<title>DVD Scanner</title>
+<title>DVD Collection Scanner</title>
 <script src="https://unpkg.com/html5-qrcode@2.3.8/html5-qrcode.min.js"></script>
 <style>
-body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:20px;background:#f6f7f9;color:#111}
-.card{max-width:600px;margin:auto;background:#fff;border-radius:18px;padding:20px;box-shadow:0 2px 12px #0001}
-h1{font-size:24px}p{line-height:1.4;color:#555}
-button{font-size:18px;padding:14px 18px;border:0;border-radius:12px;background:#1a73e8;color:#fff;margin:6px 0;width:100%}
-button.stop{background:#555}input{font-size:18px;padding:12px;width:100%;box-sizing:border-box;border-radius:10px;border:1px solid #bbb;margin:8px 0}
-#reader{width:100%;margin:15px 0;border-radius:14px;overflow:hidden;background:#111;min-height:20px}
-#status{padding:12px;background:#f1f3f4;border-radius:12px;min-height:24px}
+body{font-family:-apple-system,BlinkMacSystemFont,sans-serif;margin:0;padding:16px;background:#f3f5f7;color:#171717}
+.card{max-width:600px;margin:auto;background:white;border-radius:18px;padding:20px;box-shadow:0 2px 12px #0001}
+h1{font-size:24px}
+p{line-height:1.45;color:#555}
+button{font-size:17px;padding:14px;border:0;border-radius:11px;background:#1769d2;color:white;margin:6px 0;width:100%;cursor:pointer}
+button.secondary{background:#555}
+input{font-size:17px;padding:12px;box-sizing:border-box;width:100%;border:1px solid #bbb;border-radius:10px;margin:8px 0}
+#reader{width:100%;margin:14px 0;overflow:hidden;border-radius:12px}
+#status{padding:12px;background:#eef1f4;border-radius:10px;overflow-wrap:anywhere}
 .small{font-size:13px;color:#777}
 </style>
 </head>
-<body><div class="card">
+<body>
+<div class="card">
 <h1>🎬 DVD Scanner</h1>
-<p>Scan the barcode on the back of a DVD. The barcode will be sent to your Google Sheet queue.</p>
+<p>Scan a DVD barcode with your camera, choose a barcode photo, or type the numbers manually.</p>
+
 <div id="reader"></div>
+
 <button id="start">Start Camera</button>
-<button id="stop" class="stop" style="display:none">Stop Camera</button>
-<input id="manual" inputmode="numeric" autocomplete="off" placeholder="Or type barcode manually">
-<button id="add">Add Barcode</button>
-<div id="status">Ready.</div>
-<p class="small">Tip: Allow camera access when Safari asks. Keep the barcode flat and well lit.</p>
+<button id="stop" class="secondary" hidden>Stop Camera</button>
+
+<hr>
+
+<h3>Scan a barcode photo</h3>
+<p class="small">Choose a clear photo with the entire barcode visible. Image decoding happens on your device.</p>
+<input id="photo" type="file" accept="image/*" capture="environment">
+<button id="scanPhoto">Read Barcode Photo</button>
+
+<hr>
+
+<h3>Manual entry</h3>
+<input id="manual" inputmode="numeric" autocomplete="off" placeholder="Enter barcode digits">
+<button id="add">Send Barcode to Sheet</button>
+
+<div id="status" role="status">Ready.</div>
+<p class="small">If scanning fails, use a close-up photo with good lighting and no glare.</p>
 </div>
+
 <script>
 const ENDPOINT='https://script.google.com/macros/s/AKfycbxtt6OBBL3eCJIseltL06PxVOkMt6G5pqKt-eU3i9jp5cWEaBY0Xb-Dig5yVTPwdxfv/exec';
-let scanner=null,running=false,lastCode='',lastAt=0;
-const status=m=>document.getElementById('status').textContent=m;
-function submitBarcode(code){
- code=String(code||'').trim(); if(!/^\d{8,14}$/.test(code)){status('Please enter a valid 8–14 digit barcode.');return;}
- const now=Date.now(); if(code===lastCode&&now-lastAt<2500)return; lastCode=code;lastAt=now;
- status('Sending '+code+'…');
- const f=document.createElement('form');f.method='POST';f.action=ENDPOINT;f.target='submitFrame';
- const i=document.createElement('input');i.type='hidden';i.name='barcode';i.value=code;f.appendChild(i);document.body.appendChild(f);f.submit();f.remove();
- document.getElementById('manual').value='';
- status('✓ Barcode '+code+' sent to your queue.');
+
+let scanner=null;
+let running=false;
+let lastCode='';
+let lastAt=0;
+let busy=false;
+
+const $=id=>document.getElementById(id);
+const status=message=>$('status').textContent=message;
+
+function submitBarcode(value){
+  const code=String(value||'').replace(/\D/g,'').trim();
+
+  if(!/^\d{8,14}$/.test(code)){
+    status('No valid barcode found. Enter 8–14 digits, or try another photo.');
+    return;
+  }
+
+  const now=Date.now();
+  if(code===lastCode && now-lastAt<2500){
+    status('This barcode was just scanned. Try another DVD.');
+    return;
+  }
+
+  lastCode=code;
+  lastAt=now;
+  status('Sending barcode '+code+' to your queue…');
+
+  const form=document.createElement('form');
+  form.method='POST';
+  form.action=ENDPOINT;
+  form.target='submitFrame';
+
+  const input=document.createElement('input');
+  input.type='hidden';
+  input.name='barcode';
+  input.value=code;
+  form.appendChild(input);
+  document.body.appendChild(form);
+  form.submit();
+  form.remove();
+
+  $('manual').value='';
+  status('Barcode '+code+' submitted. Check your Google Sheet queue to confirm it arrived.');
 }
-async function start(){
- if(ENDPOINT.includes('PASTE_')){status('Scanner is not configured yet. Put your Apps Script /exec URL in this page.');return;}
- if(typeof Html5Qrcode==='undefined'){status('Scanner library did not load. Check your internet connection and reload.');return;}
- try{  
-scanner=new Html5Qrcode('reader',{
-  formatsToSupport:[
-    Html5QrcodeSupportedFormats.UPC_A,
-    Html5QrcodeSupportedFormats.UPC_E,
-    Html5QrcodeSupportedFormats.EAN_13,
-    Html5QrcodeSupportedFormats.EAN_8,
-    Html5QrcodeSupportedFormats.CODE_128
-  ],
-  verbose:false
+
+async function startCamera(){
+  if(typeof Html5Qrcode==='undefined'){
+    status('Scanner library did not load. Check your internet connection and reload.');
+    return;
+  }
+
+  if(running) return;
+
+  try{
+    scanner=new Html5Qrcode('reader');
+    await scanner.start(
+      {facingMode:'environment'},
+      {fps:10,disableFlip:false},
+      decodedText=>{
+        if(!busy){
+          busy=true;
+          submitBarcode(decodedText);
+          setTimeout(()=>busy=false,2500);
+        }
+      },
+      ()=>{}
+    );
+
+    running=true;
+    $('start').hidden=true;
+    $('stop').hidden=false;
+    status('Camera running. Center the complete barcode in the view.');
+  }catch(error){
+    status('Camera error: '+(error.message||String(error)));
+    scanner=null;
+  }
+}
+
+async function stopCamera(){
+  if(scanner && running){
+    try{await scanner.stop();}catch(error){}
+    try{scanner.clear();}catch(error){}
+  }
+  scanner=null;
+  running=false;
+  $('start').hidden=false;
+  $('stop').hidden=true;
+  status('Camera stopped.');
+}
+
+async function scanPhoto(){
+  const file=$('photo').files[0];
+
+  if(!file){
+    status('Choose a barcode photo first.');
+    return;
+  }
+
+  if(typeof Html5Qrcode==='undefined'){
+    status('Scanner library did not load. Reload the page and try again.');
+    return;
+  }
+
+  $('scanPhoto').disabled=true;
+  status('Analyzing photo…');
+
+  let imageScanner=null;
+
+  try{
+    imageScanner=new Html5Qrcode('reader');
+    const result=await imageScanner.scanFile(file,true);
+    submitBarcode(result);
+  }catch(error){
+    status('Could not read this photo. Crop tightly around the barcode, keep all bars and printed digits visible, and try again.');
+  }finally{
+    if(imageScanner){
+      try{imageScanner.clear();}catch(error){}
+    }
+    $('scanPhoto').disabled=false;
+  }
+}
+
+$('start').addEventListener('click',startCamera);
+$('stop').addEventListener('click',stopCamera);
+$('scanPhoto').addEventListener('click',scanPhoto);
+$('add').addEventListener('click',()=>submitBarcode($('manual').value));
+$('manual').addEventListener('keydown',event=>{
+  if(event.key==='Enter') submitBarcode($('manual').value);
 });
-await scanner.start(
-  {facingMode:'environment'},
-  {fps:10,disableFlip:false},
-  txt=>submitBarcode(txt),
-  err=>{}
-);  running=true;document.getElementById('start').style.display='none';document.getElementById('stop').style.display='block';status('Camera running — scan a DVD barcode.');
- }catch(e){status('Camera error: '+(e.message||e));}
-}
-async function stop(){if(scanner&&running){try{await scanner.stop();}catch(e){}try{scanner.clear();}catch(e){}running=false;}document.getElementById('start').style.display='block';document.getElementById('stop').style.display='none';status('Camera stopped.');}
-document.getElementById('start').onclick=start;document.getElementById('stop').onclick=stop;document.getElementById('add').onclick=()=>submitBarcode(document.getElementById('manual').value);
 </script>
-<iframe name="submitFrame" style="display:none"></iframe>
-</body></html>
+
+<iframe name="submitFrame" title="Barcode submission" hidden></iframe>
+</body>
+</html>
