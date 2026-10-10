@@ -158,7 +158,16 @@ async function scanPhoto(){
   let imageScanner=null;
 
   try{
-    imageScanner=new Html5Qrcode('reader');
+    imageScanner=new Html5Qrcode('reader',{
+  formatsToSupport:[
+    Html5QrcodeSupportedFormats.UPC_A,
+    Html5QrcodeSupportedFormats.UPC_E,
+    Html5QrcodeSupportedFormats.EAN_13,
+    Html5QrcodeSupportedFormats.EAN_8,
+    Html5QrcodeSupportedFormats.CODE_128,
+    Html5QrcodeSupportedFormats.ITF
+  ]
+});
     const result=await imageScanner.scanFile(file,true);
     submitBarcode(result);
   }catch(error){
